@@ -5,6 +5,8 @@ import re
 import uuid
 import numpy as np
 
+import argparse
+
 '''
 The post that gives me more clues
 
@@ -21,6 +23,11 @@ https://developers.google.com/streetview/publish/camm-spec?hl=es-419#data-format
 https://exiftool.org/forum/index.php?topic=5095.45
 
 
+The following command utilizes the exiftool utility to extract embedded metadata from a specified video file. 
+It provides detailed information about the operations being performed and the metadata extracted. 
+The -V3 option sets the verbosity level to the highest detail, offering in-depth insights into the metadata processing. 
+This level of verbosity is particularly useful for troubleshooting and comprehensive analysis of metadata within the file.
+
 exiftool -ee -V3 /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.MP4
 
 exiftool -ee -V3 /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.MP4 > /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.txt
@@ -28,11 +35,41 @@ exiftool -ee -V3 /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013
 A bit of explanation on what's going on :
 
 I want to sticth the images from the new format for the ricoh theta Z1, which allows to generate a 3648*3648 videos at 1 or 2 fps, resulting in to videos :
-R0013350_0.MP4 and R0013350_1.MP4 for example, one fro each lens.
+R0013350_0.MP4 and R0013350_1.MP4 for example, one for each lens.
 
-Additionally there must be the IMU information somewhere, and yes it's there, the camm file format
+Additionally there must be the IMU information somewhere, and yes it's there, the camm file format it's actually being used.
+
+Extract and interpret the camera motion data (specifically, acceleration and angular velocity) embedded within a video file. This data, referred to as "camm" data, is stored in a binary format that required a careful approach to decode and understand. The journey involved multiple steps, which I'll outline below.
+
+1. **Initial Data Extraction**: We first extracted the binary data corresponding to the "camm" track from the video file. This required understanding the structure of the video file and locating the appropriate bytes. We then wrote these bytes to a separate file for further analysis.
+
+2. **Pattern Analysis**: We analyzed the binary data and identified some patterns, notably a repeating sequence of bytes at the beginning of each chunk of data. We hypothesized that these bytes could be serving as markers or identifiers for the data chunks.
+
+3. **Data Interpretation**: Based on the identified patterns, we initially hypothesized that the data might be split into chunks of 16 bytes each, where each chunk corresponds to a single frame of the video. However, the number of chunks did not match the number of frames in the video, so we refined our hypothesis.
+
+4. **Refining the Interpretation**: We noticed that the number of data chunks was roughly proportional to the video duration in seconds, suggesting that the camm data was sampled at a fixed frequency independent of the video frame rate. We then modified our approach to interpret the data accordingly.
+
+5. **Data Parsing**: We wrote a Python script to parse the binary data into readable form. This involved reading the data in chunks of 16 bytes each and converting each chunk to three floating-point numbers using the struct module. 
+
+6. **Exploring Other Tools**: We found that the ExifTool command-line utility could also extract the camm data from the video file in a readable format. We decided to use the output from ExifTool as a basis for further analysis.
+
+7. **Refining the Parsing Script**: Based on the ExifTool output, we refined our Python script to parse the data more accurately. We now also extracted the sample time and duration for each data sample.
+
+8. **Matching Samples to Frames**: Given the frame rate of the video, we wrote a function to associate each video frame with the closest camm data sample in time.
+
+9. **Calculating Orientation**: Finally, we used the acceleration data to calculate the pitch and roll of the camera for each sample. We used the numpy library to perform these calculations.
+
+Through this iterative process, we built a tool to extract, parse, and interpret the camm data embedded in a video file. The final result is a Python script that takes a video file as input and produces a JSON file containing the acceleration, angular velocity, sample time, duration, and calculated pitch and roll for each sample, as well as a unique ID for each sample. This data can then be used for further analysis or visualization.
 
 '''
+
+
+# Function to calculate pitch and roll
+def calculate_pitch_roll(acceleration):
+    x, y, z = acceleration
+    pitch = np.arctan2(x, np.sqrt(y**2 + z**2))
+    roll = np.arctan2(y, np.sqrt(x**2 + z**2))
+    return np.degrees(pitch), np.degrees(roll)
 
 def parse_camm_data(filePath):
 
@@ -57,7 +94,14 @@ def parse_camm_data(filePath):
             current_sample[identifier] = values
             if 'acceleration' in identifier:
                 # Once we have both AngularVelocity and Acceleration, consider the sample complete
+                
+                # Calculate pitch and roll
+                pitch, roll = calculate_pitch_roll(values)
+                current_sample['pitch'] = pitch
+                current_sample['roll'] = roll
+
                 current_sample['uuid'] = str(uuid.uuid4())
+                
                 current_sample['sampletime'] = sample_time
                 current_sample['sampleduration'] = sample_duration
                 data.append(current_sample)
@@ -85,10 +129,11 @@ def parse_camm_data(filePath):
 
 
 
-def get_frame_samples(data, frame_rate):
+# Function to get frame samples
+def get_frame_samples(data, frame_rate, duration):
     frame_samples = []
 
-    total_frames = int(data[-1]['sampletime'] * frame_rate) + 1
+    total_frames = int(duration * frame_rate)
 
     for frame in range(total_frames):
         frame_time = frame / frame_rate
@@ -97,12 +142,7 @@ def get_frame_samples(data, frame_rate):
 
     return frame_samples
 
-# Function to calculate pitch and roll
-def calculate_pitch_roll(acceleration):
-    x, y, z = acceleration
-    pitch = np.arctan2(x, np.sqrt(y**2 + z**2))
-    roll = np.arctan2(y, np.sqrt(x**2 + z**2))
-    return np.degrees(pitch), np.degrees(roll)
+
 
 def get_video_data(video_path):
 
@@ -119,24 +159,45 @@ def get_video_data(video_path):
         subprocess.run(['exiftool', '-ee', '-V3', video_path, '>', txt_file_path], stdout=f)
 
     # Get the frame rate
-    result = subprocess.run(['exiftool', '-VideoFrameRate', video_path], capture_output=True, text=True)
-    frame_rate_line = result.stdout
-    frame_rate = float(frame_rate_line.split(':')[-1].strip())
+    result = subprocess.run(['exiftool', '-VideoFrameRate', '-Duration', video_path], capture_output=True, text=True)
 
-    return frame_rate, txt_file_path
+    lines = result.stdout.split('\n')
+    
+    for line in lines:
+        if 'Video Frame Rate' in line:
+            frame_rate = float(line.split(':')[-1].strip())
+        elif 'Duration' in line:
+            duration = float(line.split(':')[-1].split()[0].strip())
+    
+
+    camm_data = parse_camm_data(txt_file_path)
 
 
 
-video_path = "/Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.MP4"
-frame_rate, txt_file_path = get_video_data(video_path)
+    return frame_rate, duration, camm_data
 
-camm_data = parse_camm_data(txt_file_path)
 
-frame_samples = get_frame_samples(camm_data, frame_rate)
 
-# for i, sample in enumerate(frame_samples):
-#     print(f"Frame {i+1}:")
-#     print(sample)
-#     print()
+def main(videoPath, outputPath, stitch_frames, format):
 
+    frame_rate, duration, camm_data = get_video_data(videoPath)
+
+
+    frame_samples = get_frame_samples(camm_data, frame_rate, duration)
+
+    for i, sample in enumerate(frame_samples):
+        print(f"Frame {i+1}:")
+        print(json.dumps(sample, indent=4))
+        print()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Convert camm data of a ricoh theta Z1 to a json file with')
+
+    parser.add_argument('-v' ,'--videoPath',    default='/home/jordi/Documents/dataset/calibration_mobile/VID_20230801_130453.mp4',  type=str, help='Path to the video so that we can extract the frames')
+    parser.add_argument('-o' ,'--outputPath',   default='/home/jordi/Documents/dataset/calibration_mobile/atlas1', type=str, help='Output Path folder for atlas structure')
+    parser.add_argument('-s', '--stitch_frames', action='store_true', help='Set this flag to extract frames')
+    parser.add_argument('-f', '--format',       type=str, default="jpg", choices=["png", "jpg", "jpeg"], help="Specify the image format for the extracted frames. Default is 'png'.")
+    args = parser.parse_args()
+
+    main(args.videoPath, args.outputPath, args.stitch_frames, args.format)
 
