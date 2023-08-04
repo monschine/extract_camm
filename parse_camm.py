@@ -1,4 +1,5 @@
 import subprocess
+import time
 import os
 import json
 import re
@@ -177,13 +178,140 @@ def get_video_data(video_path):
     return frame_rate, duration, camm_data
 
 
+def animate_model(camm_data):
+    import open3d as o3d
 
-def main(videoPath, outputPath, stitch_frames, format):
+    # Prepare Open3D visualizer
+    vis = o3d.visualization.Visualizer()
+    vis.create_window()
+
+    # Load the 3D model
+    mesh = o3d.io.read_triangle_mesh("theta_v.stl")
+    vis.add_geometry(mesh)
+
+    # Create a line set to display the edges of the mesh
+    edges = o3d.geometry.LineSet.create_from_triangle_mesh(mesh)
+    edges.paint_uniform_color([0, 0, 0])  # Black edges
+    vis.add_geometry(edges)
+
+   
+
+    # Define a function to create rotation matrix
+    def create_rotation_matrix(pitch, roll):
+        pitch = np.deg2rad(pitch)
+        roll = np.deg2rad(roll)
+        Rx = np.array([[1, 0, 0], [0, np.cos(pitch), -np.sin(pitch)], [0, np.sin(pitch), np.cos(pitch)]])
+        Ry = np.array([[np.cos(roll), 0, np.sin(roll)], [0, 1, 0], [-np.sin(roll), 0, np.cos(roll)]])
+        return Rx @ Ry
+
+    # Apply rotations to the model
+    for sample in camm_data:
+        pitch, roll = sample['pitch'], sample['roll']
+        R = create_rotation_matrix(pitch, roll)
+        mesh.rotate(R, center=(0, 0, 0))  # Rotate around the origin
+        edges.rotate(R, center=(0, 0, 0))  # Rotate around the origin
+        vis.update_geometry(mesh)
+        vis.update_geometry(edges)
+        vis.poll_events()
+        vis.update_renderer()
+        time.sleep(0.1)  # Delay between each frame
+
+    vis.destroy_window()
+
+
+def plot_pitch_roll(camm_data):
+    import matplotlib.pyplot as plt
+
+    # Extract pitch and roll values
+    pitch_values = []
+    roll_values = []
+
+    for sample in camm_data:
+        pitch_values.append(sample['pitch'])
+        roll_values.append(sample['roll'])
+
+    # Plot pitch and roll values
+    plt.figure(figsize=(14, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(pitch_values)
+    plt.title('Pitch values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Pitch (degrees)')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(roll_values)
+    plt.title('Roll values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Roll (degrees)')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_raw_data (camm_data):
+
+    import matplotlib.pyplot as plt
+    
+    # Extract acceleration and angular velocity values
+    acceleration_values = []
+    angular_velocity_values = []
+
+    for sample in camm_data:
+        acceleration_values.append(sample['acceleration'])
+        angular_velocity_values.append(sample['angularvelocity'])
+
+    # Convert lists of lists into numpy arrays for easier manipulation
+    acceleration_values = np.array(acceleration_values)
+    angular_velocity_values = np.array(angular_velocity_values)
+
+    # Plot acceleration and angular velocity values
+    plt.figure(figsize=(14, 6))
+
+    plt.subplot(2, 2, 1)
+    plt.plot(acceleration_values[:, 0])
+    plt.title('Acceleration X values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Acceleration (m/s^2)')
+
+    plt.subplot(2, 2, 2)
+    plt.plot(acceleration_values[:, 1])
+    plt.title('Acceleration Y values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Acceleration (m/s^2)')
+
+    plt.subplot(2, 2, 3)
+    plt.plot(acceleration_values[:, 2])
+    plt.title('Acceleration Z values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Acceleration (m/s^2)')
+
+    plt.subplot(2, 2, 4)
+    plt.plot(angular_velocity_values[:, 0], label='X')
+    plt.plot(angular_velocity_values[:, 1], label='Y')
+    plt.plot(angular_velocity_values[:, 2], label='Z')
+    plt.title('Angular Velocity values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Angular Velocity (rad/s)')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def main(videoPath, outputPath, stitch_frames, format, debug):
 
     frame_rate, duration, camm_data = get_video_data(videoPath)
 
 
     frame_samples = get_frame_samples(camm_data, frame_rate, duration)
+
+    if debug :
+        # animate_model(camm_data)
+        # plot_pitch_roll(camm_data)
+        plot_raw_data(camm_data)
+
 
     for i, sample in enumerate(frame_samples):
         print(f"Frame {i+1}:")
@@ -197,7 +325,8 @@ if __name__ == "__main__":
     parser.add_argument('-o' ,'--outputPath',   default='/home/jordi/Documents/dataset/calibration_mobile/atlas1', type=str, help='Output Path folder for atlas structure')
     parser.add_argument('-s', '--stitch_frames', action='store_true', help='Set this flag to extract frames')
     parser.add_argument('-f', '--format',       type=str, default="jpg", choices=["png", "jpg", "jpeg"], help="Specify the image format for the extracted frames. Default is 'png'.")
+    parser.add_argument('-d', '--debug',        action='store_true', help='Visualize the data in open3d')
     args = parser.parse_args()
 
-    main(args.videoPath, args.outputPath, args.stitch_frames, args.format)
+    main(args.videoPath, args.outputPath, args.stitch_frames, args.format, args.debug)
 
