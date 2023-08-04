@@ -1,50 +1,158 @@
 from pymp4.parser import Box
 from construct.core import RangeError
 import numpy as np
+import os
 
 
-def find_camm_boxes(fp):
-    boxes = []
-    while True:
-        try:
-            box = Box.parse_stream(fp)
-        except RangeError:
-            break
-        if box.type.decode('utf-8') == 'camm':
-            boxes.append(box)
-        if box.size > 8:
-            fp.seek(box.offset + box.size)
-    return boxes
+def extract_rotation_values(mp4_file_path):
+    # Define the binary pattern for the header information
+    header_pattern = b'CameraMetadataMotionHandler'
 
+    # Open the mp4 file in binary mode and read the data
+    with open(mp4_file_path, 'rb') as file:
+        data = file.read()
 
-def decode_angle_axis(encoded_vec):
-    # Calculate the axis of rotation by normalizing the encoded vector
-    axis = encoded_vec / np.linalg.norm(encoded_vec)
+    # Find the start position of the rotation values
+    start_pos = data.find(header_pattern)
+    if start_pos == -1:
+        raise ValueError("Header pattern not found in file")
+
+    print('start_pos0', start_pos)
+
+    # Extract and print the values after the given index
+    # Used to validate the starting point
+    # values_after_point = data[start_pos:start_pos+173]
+    # print('values_after_point', values_after_point)
     
-    # Calculate the rotation angle in radians by finding the length of the encoded vector
-    angle_radians = np.linalg.norm(encoded_vec)
+    # we are adding 173 positions in order to get to the end of the lines that are expected to be the beginning of the rotation data
+    # CameraMetadataMotionHandler�����minf���,hdlr����dhlrurl ������������DataHandler����$dinf���dref����������url ������0stbl��� stsd����������camm���������q�stts������:�
+    start_pos1 = start_pos + 173
+    print('start_pos1', start_pos1)
+
     
-    return axis, angle_radians
-def extract_camm_track(video_path):
 
-    with open(video_path, 'rb') as fp:
-        camm_boxes = find_camm_boxes(fp)
+   # Find the end position of the rotation values (the next null bytes)
+    termination_pattern = b'\x00' * 96  # 96 null bytes
 
-        print(camm_boxes)
-        # Here you have all the 'camm' boxes in the video file
-        # You can now decode the content of each box according to the specifications
-        for box in camm_boxes:
-            # Assume the content of the box is a binary representation of the encoded angle-axis vector
-            encoded_vec = np.frombuffer(box.content, dtype=np.float32)
-            
-            # Decode the encoded angle-axis vector
-            axis, angle_radians = decode_angle_axis(encoded_vec)
-            
-            # Now you have the axis of rotation and the rotation angle in radians
-            print("Axis:", axis)
-            print("Angle (in radians):", angle_radians)
+    # Find the end position of the rotation values
+    end_pos = data.find(termination_pattern, start_pos1)
+    print('end_pos',end_pos)
 
-    # return camm_data
+    # If no null bytes are found after the start position, use the end of the file
+    if end_pos == -1:
+        end_pos = len(data)
 
-video_path = "R0013304_0.MP4"
-camm_data = extract_camm_track(video_path)
+    # Extract the rotation values between the start and end positions
+
+    camm_data = data[start_pos1:end_pos]
+
+    with open('camm_data1.txt', 'wb') as file:
+        file.write(camm_data)
+   
+
+    # Calculate the total number of rows
+    total_rows = len(camm_data) // 16
+    print(f"Total number of rows: {total_rows}")
+
+
+
+    return 
+
+    # Parse the rotation values, skipping the metadata bytes
+    rotation_values = []
+    for i in range(total_rows):
+        row_data = camm_data[i*16:(i+1)*16]
+        rotation_values.extend(np.frombuffer(row_data[8:], dtype=np.float32))
+
+    rotation_values = np.array(rotation_values)
+    print(f"Total number of rotation values: {len(rotation_values)}")
+
+    # Reshape the array into samples of 3x3 matrices
+    rotation_matrices = rotation_values.reshape((-1, 3, 3))
+
+    return 
+
+    with open('camm_data.txt', 'wb') as file:
+        file.write(camm_data)
+
+    rotation_values = np.frombuffer(camm_data, dtype=np.float32)
+    print(f"Total number of rotation values: {len(rotation_values)}")
+
+    # Reshape the array into samples of 3x3 matrices
+    rotation_matrices = rotation_values.reshape((-1, 3, 3))
+
+    return
+    
+    # Parse the rotation values
+    rotation_matrices = parse_camm_data(camm_data)
+
+    return rotation_matrices
+
+
+def parse_camm_data_save(binary_data):
+    # Check that the length of the data is a multiple of 36
+    # assert len(binary_data) % 36 == 0, "Invalid data length"
+
+    # Calculate the number of samples
+    # num_samples = len(binary_data) // 36
+
+    # Open a file in write mode and save the string
+    with open('raw_rotations.txt', 'wb') as file:
+        file.write(binary_data)
+
+    # Convert the bytes into a numpy array of floats
+    # data_floats = np.frombuffer(binary_data, dtype=np.float32)
+    # print(data_floats)
+    # np.savetxt('numpy_array_32.txt', data_floats, delimiter=',')
+    # Reshape the array into samples
+    # samples = data_floats.reshape((num_samples, 3, 3))
+
+    # return samples
+
+
+
+
+def parse_camm_data(data):
+    # Number of bytes in each chunk
+    chunk_size = 16
+
+    # Number of bytes in each float32 value
+    float_size = 4
+
+    # Number of chunks in the data
+    num_chunks = len(data) // chunk_size
+
+    print('num_chunks',num_chunks)
+
+    # Initialize an array to store the rotation values
+    rotations = np.empty((num_chunks, 3), dtype=np.float32)
+
+    # Iterate over each chunk
+    for i in range(num_chunks):
+        for j in range(3):
+            # Get the start and end indices of the float32 value in the chunk
+            start = i * chunk_size + j * float_size
+            end = start + float_size - 1  # subtract 1 to ignore the last byte
+
+            # Extract the 3 bytes and append a zero byte
+            three_bytes = data[start:end]
+            four_bytes = three_bytes + b'\x00'
+
+            # Interpret the four bytes as a float32 value and store it in the array
+            rotations[i, j] = np.frombuffer(four_bytes, dtype=np.float32)[0]
+
+    # Reshape the array into samples of 3x3 matrices
+    rotation_matrices = rotations.reshape(-1, 3, 3)
+
+    return rotation_matrices
+
+
+# video_path = "R0013304_0.MP4"
+video_path = "R0013312_0.MP4"
+# camm_data = extract_camm_track(video_path)
+camm_data = extract_rotation_values(video_path)
+
+# for i, matrix in enumerate(camm_data):
+#     print(f"Matrix {i+1}:")
+#     print(matrix)
+#     print()
