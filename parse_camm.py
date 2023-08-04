@@ -256,14 +256,79 @@ def plot_raw_data (camm_data):
     # Extract acceleration and angular velocity values
     acceleration_values = []
     angular_velocity_values = []
+    # Extract pitch and roll values
+    pitch_values = []
+    roll_values = []
+
 
     for sample in camm_data:
         acceleration_values.append(sample['acceleration'])
         angular_velocity_values.append(sample['angularvelocity'])
+        pitch_values.append(sample['pitch'])
+        roll_values.append(sample['roll'])
 
     # Convert lists of lists into numpy arrays for easier manipulation
     acceleration_values = np.array(acceleration_values)
     angular_velocity_values = np.array(angular_velocity_values)
+
+    # Plot acceleration, angular velocity, pitch, and roll values
+    plt.figure(figsize=(18, 12))
+
+    # Acceleration plots
+    plt.subplot(3, 3, 1)
+    plt.plot(acceleration_values[:, 0])
+    plt.title('Acceleration X values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Acceleration (m/s^2)')
+
+    plt.subplot(3, 3, 2)
+    plt.plot(acceleration_values[:, 1])
+    plt.title('Acceleration Y values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Acceleration (m/s^2)')
+
+    plt.subplot(3, 3, 3)
+    plt.plot(acceleration_values[:, 2])
+    plt.title('Acceleration Z values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Acceleration (m/s^2)')
+
+    # Angular velocity plots
+    plt.subplot(3, 3, 4)
+    plt.plot(angular_velocity_values[:, 0])
+    plt.title('Angular Velocity X values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Angular Velocity (rad/s)')
+
+    plt.subplot(3, 3, 5)
+    plt.plot(angular_velocity_values[:, 1])
+    plt.title('Angular Velocity Y values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Angular Velocity (rad/s)')
+
+    plt.subplot(3, 3, 6)
+    plt.plot(angular_velocity_values[:, 2])
+    plt.title('Angular Velocity Z values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Angular Velocity (rad/s)')
+
+    # Pitch and roll plots
+    plt.subplot(3, 3, 7)
+    plt.plot(pitch_values)
+    plt.title('Pitch values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Pitch (degrees)')
+
+    plt.subplot(3, 3, 8)
+    plt.plot(roll_values)
+    plt.title('Roll values over time')
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Roll (degrees)')
+
+    plt.tight_layout()
+    plt.show()
+
+    return 
 
     # Plot acceleration and angular velocity values
     plt.figure(figsize=(14, 6))
