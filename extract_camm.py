@@ -29,13 +29,20 @@ def extract_rotation_values(mp4_file_path):
     start_pos1 = start_pos + 173
     print('start_pos1', start_pos1)
 
+
+    header_bytes = b'\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40'
+
+    start = data.find(header_bytes, start_pos)
+
     
+    print('start',start)
+
 
    # Find the end position of the rotation values (the next null bytes)
     termination_pattern = b'\x00' * 96  # 96 null bytes
 
     # Find the end position of the rotation values
-    end_pos = data.find(termination_pattern, start_pos1)
+    end_pos = data.find(termination_pattern, start)
     print('end_pos',end_pos)
 
     # If no null bytes are found after the start position, use the end of the file
