@@ -2,7 +2,29 @@ from pymp4.parser import Box
 from construct.core import RangeError
 import numpy as np
 import os
+import struct
 
+'''
+The post that gives me more clues
+
+https://community.theta360.guide/t/theta-z1-gps-track-in-video-files/7101/2
+
+exiftool -a -G1 -n -handlertype /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.MP4 
+[Track1]        Handler Type                    : vide
+[Track2]        Handler Type                    : camm
+[Track2]        Handler Type                    : url
+[QuickTime]     Handler Type                    : mdta
+
+https://github.com/trek-view/360-camera-metadata/blob/master/0-standards/camm.md
+https://developers.google.com/streetview/publish/camm-spec?hl=es-419#data-format
+https://exiftool.org/forum/index.php?topic=5095.45
+
+
+exiftool -ee -V3 /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.MP4
+
+exiftool -ee -V3 /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.MP4 > /Users/jordivallverdu/Documents/360code/apps/motion_theta/R0013304_0.txt
+
+'''
 
 def extract_rotation_values(mp4_file_path):
     # Define the binary pattern for the header information
@@ -30,9 +52,11 @@ def extract_rotation_values(mp4_file_path):
     print('start_pos1', start_pos1)
 
 
-    header_bytes = b'\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40\x00\x01\x00\x4C\x4B\x40'
+    header_bytes = b'\x4C\x4B\x40\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x4C\x4B\x40\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x4C\x4B\x40\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x4C\x4B\x40\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x4C\x4B\x40\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x4C\x4B\x40\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x4C\x4B\x40'
 
     start = data.find(header_bytes, start_pos)
+    start += len(header_bytes)
+
 
     
     print('start',start)
@@ -51,9 +75,9 @@ def extract_rotation_values(mp4_file_path):
 
     # Extract the rotation values between the start and end positions
 
-    camm_data = data[start_pos1:end_pos]
+    camm_data = data[start:end_pos]
 
-    with open('camm_data1.txt', 'wb') as file:
+    with open('camm_data.txt', 'wb') as file:
         file.write(camm_data)
    
 
@@ -61,9 +85,8 @@ def extract_rotation_values(mp4_file_path):
     total_rows = len(camm_data) // 16
     print(f"Total number of rows: {total_rows}")
 
-
-
-    return 
+    rm = parse_camm_data(camm_data)
+    return rm
 
     # Parse the rotation values, skipping the metadata bytes
     rotation_values = []
@@ -95,6 +118,14 @@ def extract_rotation_values(mp4_file_path):
 
     return rotation_matrices
 
+def parse_camm_data(camm_data):
+    rows = [camm_data[i:i+16] for i in range(0, len(camm_data), 16)]
+    values = []
+    for row in rows:
+        value = struct.unpack('>f', row[12:])
+        values.append(value)
+    return values
+
 
 def parse_camm_data_save(binary_data):
     # Check that the length of the data is a multiple of 36
@@ -119,7 +150,7 @@ def parse_camm_data_save(binary_data):
 
 
 
-def parse_camm_data(data):
+def parse_camm_data_(data):
     # Number of bytes in each chunk
     chunk_size = 16
 
@@ -154,12 +185,13 @@ def parse_camm_data(data):
     return rotation_matrices
 
 
-# video_path = "R0013304_0.MP4"
-video_path = "R0013312_0.MP4"
+video_path = "R0013304_0.MP4"
+# video_path = "R0013312_0.MP4"
+# video_path = "R0013350_0.MP4"
 # camm_data = extract_camm_track(video_path)
 camm_data = extract_rotation_values(video_path)
 
-# for i, matrix in enumerate(camm_data):
-#     print(f"Matrix {i+1}:")
-#     print(matrix)
-#     print()
+for i, matrix in enumerate(camm_data):
+    print(f"Matrix {i+1}:")
+    print(matrix)
+    print()
