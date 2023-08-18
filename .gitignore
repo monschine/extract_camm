@@ -2,3 +2,7 @@
 *.MP4
 *.mp4
 *.txt
+video_samples/*.jpg
+video_samples/*.png
+video_samples/**/*.jpg
+video_samples/**/*.png

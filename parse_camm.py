@@ -72,7 +72,20 @@ def calculate_pitch_roll(acceleration):
     roll = np.arctan2(y, np.sqrt(x**2 + z**2))
     return np.degrees(pitch), np.degrees(roll)
 
-def parse_camm_data(filePath):
+def write_camm_to_csv(camm_data, csv_path):
+    import csv
+    
+    headers = ["Time (s)", "Gyroscope X (deg/s)", "Gyroscope Y (deg/s)", "Gyroscope Z (deg/s)", "Accelerometer X (g)", "Accelerometer Y (g)", "Accelerometer Z (g)"]
+    with open(csv_path, "w", newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(headers)
+        for sample in camm_data:
+            time = sample["sampletime"]
+            GyroscopeX, GyroscopeY, GyroscopeZ = sample["angularvelocity"]
+            AccelerometerX, AccelerometerY, AccelerometerZ = sample["acceleration"]
+            csvwriter.writerow([time, GyroscopeX, GyroscopeY, GyroscopeZ, AccelerometerX, AccelerometerY, AccelerometerZ])
+
+def write_camm_to_json(filePath, jsonPath):
 
     with open(filePath, 'r') as f:
         lines = f.readlines()
@@ -109,20 +122,12 @@ def parse_camm_data(filePath):
                 current_sample = {}
 
     
-    # Get the file name without extension
-    file_name_without_extension = os.path.splitext(os.path.basename(filePath))[0]
-
-    # Get the directory of the video file and create the .txt file path
-    directory = os.path.dirname(filePath)
-
+   
     # Convert to JSON-like format
     data_json = json.dumps(data, indent=4)
 
-    # Specify the file path where you want to save the JSON data
-    file_path = os.path.join(directory, f"{file_name_without_extension}.json")
-
     # Open the file for writing and write the JSON data
-    with open(file_path, "w") as json_file:
+    with open(jsonPath, "w") as json_file:
         json_file.write(data_json)
 
     return data
@@ -145,7 +150,7 @@ def get_frame_samples(data, frame_rate, duration):
 
 
 
-def get_video_data(video_path):
+def get_video_data(video_path, csv):
 
     # Get the file name without extension
     file_name_without_extension = os.path.splitext(os.path.basename(video_path))[0]
@@ -174,7 +179,12 @@ def get_video_data(video_path):
             duration = float(line.split(':')[-1].split()[0].strip())
     
 
-    camm_data = parse_camm_data(txt_file_path)
+    json_file_path = os.path.join(directory, f"{file_name_without_extension}.json")
+    camm_data = write_camm_to_json(txt_file_path, json_file_path)
+    
+    if csv :
+        csv_file_path = os.path.join(directory, f"{file_name_without_extension}.csv")
+        write_camm_to_csv(camm_data, csv_file_path)
 
 
     return frame_rate, duration, camm_data
@@ -367,23 +377,22 @@ def plot_raw_data (camm_data):
 
 
 
-def main(videoPath, outputPath, stitch_frames, format, debug):
+def main(videoPath, outputPath, stitch_frames, format, csv, debug):
 
-    frame_rate, duration, camm_data = get_video_data(videoPath)
+    frame_rate, duration, camm_data = get_video_data(videoPath, csv)
+
+    frame_samples = get_frame_samples(camm_data, frame_rate, duration)
+
 
     if debug :
         # animate_model(camm_data)
         # plot_pitch_roll(camm_data)
         plot_raw_data(camm_data)
 
-    frame_samples = get_frame_samples(camm_data, frame_rate, duration)
-
-
-
-    for i, sample in enumerate(frame_samples):
-        print(f"Frame {i+1}:")
-        print(json.dumps(sample, indent=4))
-        print()
+        for i, sample in enumerate(frame_samples):
+            print(f"Frame {i+1}:")
+            print(json.dumps(sample, indent=4))
+            print()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert camm data of a ricoh theta Z1 to a json file with')
@@ -393,7 +402,8 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--stitch_frames', action='store_true', help='Set this flag to extract frames')
     parser.add_argument('-f', '--format',       type=str, default="jpg", choices=["png", "jpg", "jpeg"], help="Specify the image format for the extracted frames. Default is 'png'.")
     parser.add_argument('-d', '--debug',        action='store_true', help='Visualize the data in open3d')
+    parser.add_argument('-c', '--csv',          action='store_true', help='create csv file with the camm data')
     args = parser.parse_args()
 
-    main(args.videoPath, args.outputPath, args.stitch_frames, args.format, args.debug)
+    main(args.videoPath, args.outputPath, args.stitch_frames, args.format, args.csv, args.debug)
 
