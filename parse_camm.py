@@ -62,6 +62,11 @@ Extract and interpret the camera motion data (specifically, acceleration and ang
 
 Through this iterative process, we built a tool to extract, parse, and interpret the camm data embedded in a video file. The final result is a Python script that takes a video file as input and produces a JSON file containing the acceleration, angular velocity, sample time, duration, and calculated pitch and roll for each sample, as well as a unique ID for each sample. This data can then be used for further analysis or visualization.
 
+
+QUICK USAGE :
+
+python parse_camm.py -v '/Users/jordivallverdu/Documents/360code/apps/motion_theta/video_samples/R0013304_0.MP4' -c
+
 '''
 
 

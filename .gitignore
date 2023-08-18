@@ -1,6 +1,8 @@
 *.zip
 *.MP4
 *.mp4
+*.gif
+*.csv
 *.txt
 video_samples/*.jpg
 video_samples/*.png

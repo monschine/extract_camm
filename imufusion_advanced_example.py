@@ -38,6 +38,14 @@ for index in range(len(timestamp)):
     euler[index] = ahrs.quaternion.to_euler()
 
     ahrs_internal_states = ahrs.internal_states
+
+    print('acceleration_error',ahrs_internal_states.acceleration_error)
+    print('accelerometer_ignored',ahrs_internal_states.accelerometer_ignored)
+    print('acceleration_recovery_trigger',ahrs_internal_states.acceleration_recovery_trigger)
+    print('magnetic_error',ahrs_internal_states.magnetic_error)
+    print('magnetometer_ignored',ahrs_internal_states.magnetometer_ignored)
+    print('magnetic_recovery_trigger',ahrs_internal_states.magnetic_recovery_trigger)
+
     internal_states[index] = numpy.array([ahrs_internal_states.acceleration_error,
                                           ahrs_internal_states.accelerometer_ignored,
                                           ahrs_internal_states.acceleration_recovery_trigger,

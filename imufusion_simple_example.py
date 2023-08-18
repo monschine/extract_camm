@@ -1,3 +1,10 @@
+'''
+you can easilly install imufusion :
+
+pip install imufusion==1.1.2
+
+'''
+
 import imufusion
 import matplotlib.pyplot as pyplot
 import numpy
