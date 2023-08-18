@@ -19,7 +19,7 @@ exiftool -a -G1 -n -handlertype /Users/jordivallverdu/Documents/360code/apps/mot
 [Track2]        Handler Type                    : url
 [QuickTime]     Handler Type                    : mdta
 
-https://github.com/trek-view/360-camerta-metadata/blob/master/0-standards/camm.md
+https://github.com/trek-view/360-camera-metadata/blob/master/0-standards/camm.md
 https://developers.google.com/streetview/publish/camm-spec?hl=es-419#data-format
 https://exiftool.org/forum/index.php?topic=5095.45
 
@@ -163,7 +163,10 @@ def get_video_data(video_path):
     result = subprocess.run(['exiftool', '-VideoFrameRate', '-Duration', video_path], capture_output=True, text=True)
 
     lines = result.stdout.split('\n')
-    
+
+    frame_rate = None
+    duration = None
+
     for line in lines:
         if 'Video Frame Rate' in line:
             frame_rate = float(line.split(':')[-1].strip())
@@ -172,7 +175,6 @@ def get_video_data(video_path):
     
 
     camm_data = parse_camm_data(txt_file_path)
-
 
 
     return frame_rate, duration, camm_data
@@ -369,13 +371,13 @@ def main(videoPath, outputPath, stitch_frames, format, debug):
 
     frame_rate, duration, camm_data = get_video_data(videoPath)
 
-
-    frame_samples = get_frame_samples(camm_data, frame_rate, duration)
-
     if debug :
         # animate_model(camm_data)
         # plot_pitch_roll(camm_data)
         plot_raw_data(camm_data)
+
+    frame_samples = get_frame_samples(camm_data, frame_rate, duration)
+
 
 
     for i, sample in enumerate(frame_samples):
